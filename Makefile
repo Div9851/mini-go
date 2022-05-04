@@ -11,4 +11,4 @@ test: $(BINARY)
 	./test.sh
 
 clean:
-	rm $(BINDIR)/$(BINARY) tmp*
+	rm -f $(BINDIR)/$(BINARY) tmp*

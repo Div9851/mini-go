@@ -1,16 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"os"
-	"strconv"
+
+	"github.com/Div9851/mini-go/codegen"
+	"github.com/Div9851/mini-go/parser"
+	"github.com/Div9851/mini-go/tokenizer"
 )
 
 func main() {
-	input, _ := strconv.Atoi(os.Args[1])
-	fmt.Println(".intel_syntax noprefix")
-	fmt.Println(".globl main")
-	fmt.Println("main:")
-	fmt.Printf("	mov rax, %d\n", input)
-	fmt.Println("	ret")
+	input := []byte(os.Args[1])
+	tokens := tokenizer.Tokenize(input)
+	node := parser.Parse(tokens)
+	codegen.Generate(node)
 }
