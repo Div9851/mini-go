@@ -14,7 +14,7 @@ type Token struct {
 	Text []byte
 }
 
-var puncts = []string{"+", "-", "*", "/", "(", ")"}
+var puncts = []string{"+", "-", "*", "/", "%", "(", ")"}
 
 func newToken(kind TokenKind) *Token {
 	token := new(Token)

@@ -8,6 +8,7 @@ const (
 	ND_SUB
 	ND_MUL
 	ND_DIV
+	ND_MOD
 	ND_UNARY_MINUS
 )
 

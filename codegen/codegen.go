@@ -34,6 +34,10 @@ func generateExpr(node *parser.Node) {
 	case parser.ND_DIV:
 		fmt.Println("    cqo")
 		fmt.Println("    idiv rdi")
+	case parser.ND_MOD:
+		fmt.Println("    cqo")
+		fmt.Println("    idiv rdi")
+		fmt.Println("    mov rax, rdx")
 	default:
 		panic("invalid expression")
 	}

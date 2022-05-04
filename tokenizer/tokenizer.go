@@ -57,6 +57,5 @@ func nextToken(input []byte) (*Token, []byte) {
 		newToken.Text = input[0:pos]
 		return newToken, input[pos:]
 	}
-	// Unknown token
-	return nil, nil
+	panic("unknown token")
 }

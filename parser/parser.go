@@ -46,6 +46,8 @@ func mulExpr(tokens []*tokenizer.Token) (*Node, []*tokenizer.Token) {
 			node = newNode(ND_MUL)
 		} else if isPunct(tokens, "/") {
 			node = newNode(ND_DIV)
+		} else if isPunct(tokens, "%") {
+			node = newNode(ND_MOD)
 		} else {
 			break
 		}
