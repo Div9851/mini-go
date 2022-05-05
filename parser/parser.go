@@ -6,93 +6,195 @@ import (
 	"github.com/Div9851/mini-go/tokenizer"
 )
 
-func Parse(tokens []*tokenizer.Token) *Node {
-	node, _ := expr(tokens)
+type Parser struct {
+	Tokens    []*tokenizer.Token
+	Rest      []*tokenizer.Token
+	Offset    map[string]int
+	StackSize int
+}
+
+func New(tokens []*tokenizer.Token) *Parser {
+	parser := new(Parser)
+	parser.Tokens = tokens
+	parser.Rest = parser.Tokens
+	parser.Offset = make(map[string]int)
+	parser.StackSize = 0
+	return parser
+}
+
+func (p *Parser) Parse() []*Node {
+	var nodes []*Node
+	for p.Rest[0].Kind != tokenizer.TK_EOF {
+		node := p.simpleStmt()
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+func (p *Parser) simpleStmt() *Node {
+	tok := p.Rest[0]
+	if matchPunct(p.Rest[0], ";") {
+		p.Rest = p.Rest[1:]
+		return newNode(ND_EMPTY_STMT, tok)
+	}
+	lhs := p.exprList()
+	if matchPunct(p.Rest[0], ";") {
+		p.Rest = p.Rest[1:]
+		if len(lhs.Exprs) > 1 {
+			panic("invalid expression statement")
+		}
+		node := newNode(ND_EXPR_STMT, tok)
+		node.Lhs = lhs.Exprs[0]
+		return node
+	}
+	if matchPunct(p.Rest[0], "=") {
+		p.Rest = p.Rest[1:]
+		rhs := p.exprList()
+		if !matchPunct(p.Rest[0], ";") {
+			panic("missing semicolon")
+		}
+		p.Rest = p.Rest[1:]
+		node := newNode(ND_ASSIGN_STMT, tok)
+		node.Lhs = lhs
+		node.Rhs = rhs
+		return node
+	}
+	if matchPunct(p.Rest[0], ":=") {
+		for _, expr := range lhs.Exprs {
+			if expr.Kind != ND_VAR {
+				panic("invalid statement(var)")
+			}
+			p.StackSize += 8
+			p.Offset[expr.VarName] = p.StackSize
+			expr.Offset = p.StackSize
+		}
+		p.Rest = p.Rest[1:]
+		rhs := p.exprList()
+		if !matchPunct(p.Rest[0], ";") {
+			panic("missing semicolon")
+		}
+		p.Rest = p.Rest[1:]
+		node := newNode(ND_ASSIGN_STMT, tok)
+		node.Lhs = lhs
+		node.Rhs = rhs
+		return node
+	}
+	panic("invalid statement")
+}
+
+func (p *Parser) exprList() *Node {
+	tok := p.Rest[0]
+	node := newNode(ND_EXPR_LIST, tok)
+	for {
+		node.Exprs = append(node.Exprs, p.expr())
+		if !matchPunct(p.Rest[0], ",") {
+			break
+		}
+		p.Rest = p.Rest[1:]
+	}
 	return node
 }
 
-func expr(tokens []*tokenizer.Token) (*Node, []*tokenizer.Token) {
-	return addExpr(tokens)
+func (p *Parser) expr() *Node {
+	return p.addExpr()
 }
 
-func addExpr(tokens []*tokenizer.Token) (*Node, []*tokenizer.Token) {
-	lhs, rest := mulExpr(tokens)
-	tokens = rest
+func (p *Parser) addExpr() *Node {
+	tok := p.Rest[0]
+	lhs := p.mulExpr()
 	for {
 		var node *Node
-		if isPunct(tokens, "+") {
-			node = newNode(ND_ADD)
-		} else if isPunct(tokens, "-") {
-			node = newNode(ND_SUB)
+		if matchPunct(p.Rest[0], "+") {
+			node = newNode(ND_ADD, tok)
+		} else if matchPunct(p.Rest[0], "-") {
+			node = newNode(ND_SUB, tok)
 		} else {
 			break
 		}
-		tokens = tokens[1:]
+		p.Rest = p.Rest[1:]
 		node.Lhs = lhs
-		rhs, rest := mulExpr(tokens)
+		rhs := p.mulExpr()
 		node.Rhs = rhs
-		tokens = rest
 		lhs = node
 	}
-	return lhs, tokens
+	return lhs
 }
 
-func mulExpr(tokens []*tokenizer.Token) (*Node, []*tokenizer.Token) {
-	lhs, rest := unaryExpr(tokens)
-	tokens = rest
+func (p *Parser) mulExpr() *Node {
+	tok := p.Rest[0]
+	lhs := p.unaryExpr()
 	for {
 		var node *Node
-		if isPunct(tokens, "*") {
-			node = newNode(ND_MUL)
-		} else if isPunct(tokens, "/") {
-			node = newNode(ND_DIV)
-		} else if isPunct(tokens, "%") {
-			node = newNode(ND_MOD)
+		if matchPunct(p.Rest[0], "*") {
+			node = newNode(ND_MUL, tok)
+		} else if matchPunct(p.Rest[0], "/") {
+			node = newNode(ND_DIV, tok)
+		} else if matchPunct(p.Rest[0], "%") {
+			node = newNode(ND_MOD, tok)
 		} else {
 			break
 		}
-		tokens = tokens[1:]
+		p.Rest = p.Rest[1:]
 		node.Lhs = lhs
-		rhs, rest := unaryExpr(tokens)
+		rhs := p.unaryExpr()
 		node.Rhs = rhs
-		tokens = rest
 		lhs = node
 	}
-	return lhs, tokens
+	return lhs
 }
 
-func unaryExpr(tokens []*tokenizer.Token) (*Node, []*tokenizer.Token) {
-	if isPunct(tokens, "-") {
-		tokens = tokens[1:]
-		node := newNode(ND_UNARY_MINUS)
-		lhs, rest := primaryExpr(tokens)
+func (p *Parser) unaryExpr() *Node {
+	tok := p.Rest[0]
+	if matchPunct(p.Rest[0], "-") {
+		p.Rest = p.Rest[1:]
+		node := newNode(ND_UNARY_MINUS, tok)
+		lhs := p.primaryExpr()
 		node.Lhs = lhs
-		return node, rest
+		return node
 	}
-	return primaryExpr(tokens)
+	return p.primaryExpr()
 }
 
-func primaryExpr(tokens []*tokenizer.Token) (*Node, []*tokenizer.Token) {
-	if isNum(tokens) {
-		node := newNode(ND_NUM)
-		node.Num = tokens[0].Num
-		return node, tokens[1:]
+func (p *Parser) primaryExpr() *Node {
+	tok := p.Rest[0]
+	if matchNum(p.Rest[0]) {
+		node := newNode(ND_NUM, tok)
+		node.Num = p.Rest[0].Num
+		p.Rest = p.Rest[1:]
+		return node
 	}
-	if isPunct(tokens, "(") {
-		tokens = tokens[1:]
-		node, rest := expr(tokens)
-		if !isPunct(rest, ")") {
+	if matchIdent(p.Rest[0]) {
+		node := newNode(ND_VAR, tok)
+		node.VarName = string(p.Rest[0].Text)
+		offset, ok := p.Offset[node.VarName]
+		if ok {
+			node.Offset = offset
+		} else {
+			node.Offset = -1
+		}
+		p.Rest = p.Rest[1:]
+		return node
+	}
+	if matchPunct(p.Rest[0], "(") {
+		p.Rest = p.Rest[1:]
+		node := p.expr()
+		if !matchPunct(p.Rest[0], ")") {
 			panic("unmatched open bracket")
 		}
-		return node, rest[1:]
+		p.Rest = p.Rest[1:]
+		return node
 	}
 	panic("invalid expression")
 }
 
-func isPunct(tokens []*tokenizer.Token, punct string) bool {
-	return len(tokens) > 0 && tokens[0].Kind == tokenizer.TK_PUNCT && bytes.Equal(tokens[0].Text, []byte(punct))
+func matchPunct(token *tokenizer.Token, punct string) bool {
+	return token.Kind == tokenizer.TK_PUNCT && bytes.Equal(token.Text, []byte(punct))
 }
 
-func isNum(tokens []*tokenizer.Token) bool {
-	return len(tokens) > 0 && tokens[0].Kind == tokenizer.TK_NUM
+func matchNum(token *tokenizer.Token) bool {
+	return token.Kind == tokenizer.TK_NUM
+}
+
+func matchIdent(token *tokenizer.Token) bool {
+	return token.Kind == tokenizer.TK_IDENT
 }

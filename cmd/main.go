@@ -10,7 +10,9 @@ import (
 
 func main() {
 	input := []byte(os.Args[1])
-	tokens := tokenizer.Tokenize(input)
-	node := parser.Parse(tokens)
-	codegen.Generate(node)
+	t := tokenizer.New(input)
+	tokens := t.Tokenize()
+	p := parser.New(tokens)
+	nodes := p.Parse()
+	codegen.Gen(nodes, p.StackSize)
 }
